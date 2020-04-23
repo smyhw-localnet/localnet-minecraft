@@ -86,10 +86,9 @@ class localnet_TCP extends online.smyhw.localnet.lib.TCP_LK
 		if(msg.startsWith("&")) {smyhw.loger.info("接受到认证信息:"+msg);return;}
 		if(msg.startsWith("*")) {msg=msg.substring(1);}
 		String[] temp1 = msg.split(":");
-		if(temp1.length<2) {return;}
-		if(temp1[1].startsWith("!!"))//判断是否为指令消息
+		if( temp1.length>2 && temp1[2].startsWith("!!"))//判断是否为指令消息
 		{
-			msg=temp1[1].substring(2);
+			msg=temp1[2].substring(2);
 			switch(CommandFJ.fj(msg, 0))
 			{
 			case"st":
