@@ -31,7 +31,13 @@ public class smyhw extends JavaPlugin implements Listener
 		getLogger().info("正在加载环境...");
 		loger=getLogger();
 		configer = getConfig();
-		if(!(new File("./plugins/localnet_MC/config.yml")).exists()) {this.saveDefaultConfig();}
+		if(!(new File("./plugins/localnet_MC/config.yml")).exists() && !configer.getBoolean("ForceExist")) 
+		{
+			this.saveDefaultConfig();
+			getLogger().warning("localnet_MC没有检测到配置文件，将创建默认配置文件，请修改默认配置文件后重载本插件或重启服务器....");
+			getLogger().info("localnet_MC加载完成");
+			return;
+		}
 		getLogger().info("正在注册监听器...");
 		Bukkit.getPluginManager().registerEvents(this,this);
 		conn();
