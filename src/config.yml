@@ -6,4 +6,4 @@ port: 2333333
 ID: MC_Server
 
 #如果此配置文件已经存在，加载插件时仍提示没有检测道配置文件。则尝试将此项更改为true
-ForceExist = false
+ForceExist: false
