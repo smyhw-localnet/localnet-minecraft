@@ -8,11 +8,13 @@ import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import online.smyhw.localnet.lib.CommandFJ;
+import online.smyhw.localnet.lib.Json;
 import online.smyhw.localnet.lib.Exception.TCP_LK_Exception;
 
 import java.io.File;
 import java.net.Socket;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.logging.Logger;
 import org.bukkit.*;
 
@@ -75,7 +77,7 @@ public class smyhw extends JavaPlugin implements Listener
 	@EventHandler
 	public void chat(AsyncPlayerChatEvent e)
     {
-		new sss("*"+e.getPlayer().getName()+":"+e.getMessage());
+		new sss("["+e.getPlayer().getName()+"]:"+e.getMessage());
     }
 }
 
@@ -84,33 +86,32 @@ class localnet_TCP extends online.smyhw.localnet.lib.TCP_LK
 	public localnet_TCP(Socket s) 
 	{
 		super(s, 2);
-		this.Smsg("&"+smyhw.ID);
+		this.Smsg("{type:auth,ID:"+smyhw.ID+"}");
 	}	
 	public void CLmsg(String msg)
 	{
 		smyhw.loger.info("接受到信息:"+msg);
-		if(msg.startsWith("&")) {smyhw.loger.info("接受到认证信息:"+msg);return;}
-		if(msg.startsWith("*")) {msg=msg.substring(1);}
-		String[] temp1 = msg.split(":");
-		if( temp1.length>2 && temp1[2].startsWith("!!"))//判断是否为指令消息
+		HashMap<String,String> message  = Json.Parse(msg);
+		if(message==null) {smyhw.loger.warning("信息解码失败");return;}
+		if(message.get("type").equals("auth")) {smyhw.loger.info("连接到localnet服务器<"+message.get("ID")+">");return;}
+		if(message.get("message")==null) {smyhw.loger.info("没有找到消息节点");return;}
+		String text = message.get("message");
+		String[] temp = text.split(":");
+		if(temp.length>=2 && temp[1].startsWith("!!"))//判断是否为指令消息
 		{
-			msg=temp1[2].substring(2);
-			switch(CommandFJ.fj(msg, 0))
+			String temp2 = temp[1].substring(2);
+			switch(CommandFJ.fj(temp2, 0))
 			{
 			case"st":
 			case"status":
 			{
-				
-//				String TPS = new String("%server_tps_1%");
-//				TPS = PlaceholderAPI.setPlaceholders(null,TPS);
-//				this.sendto("\nOurWorld["+smyhw.ID+"]服务器状态\n状态:在线\nTPS:"+TPS);
-				this.sendto("\nOurWorld["+smyhw.ID+"]服务器状态\n状态:在线");
+				this.sendto("\n["+smyhw.ID+"]服务器状态\n状态:在线");
 				break;
 			}
 			case"pl":
 			case"PlayerList":
 			{
-				String re="\nOurWorld["+smyhw.ID+"]在线列表:";
+				String re="\n["+smyhw.ID+"]在线列表:";
 				Collection<? extends Player> Players = Bukkit.getOnlinePlayers();
 				for(Player p :Players)
 				{
@@ -128,21 +129,22 @@ class localnet_TCP extends online.smyhw.localnet.lib.TCP_LK
 			}
 			default:
 			{
-				this.sendto("owr 未知的OW指令,使用!!help列出命令列表");
+				this.sendto("未知的服务器信息指令,使用!!help列出命令列表");
 				break;
 			}
 			}
 		}
 		else
 		{
-			msg="§2[§a"+temp1[0]+"§2]§r"+temp1[1];
-			Bukkit.broadcastMessage(msg);
+			text="§2[§a"+message.get("From")+"§2]§r"+text;
+			Bukkit.broadcastMessage(text);
 		}
 	}
 	
 	public void sendto(String msg)
 	{
-		msg="*"+msg;
+		msg = Json.Encoded(msg);
+		msg="{type:message,message:"+msg+"}";
 		this.Smsg(msg);
 	}
 	
