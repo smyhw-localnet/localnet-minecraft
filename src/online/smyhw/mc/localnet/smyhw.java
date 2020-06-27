@@ -13,8 +13,10 @@ import online.smyhw.localnet.lib.Exception.TCP_LK_Exception;
 
 import java.io.File;
 import java.net.Socket;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.logging.Logger;
 import org.bukkit.*;
 
@@ -81,12 +83,11 @@ public class smyhw extends JavaPlugin implements Listener
     }
 }
 
-class localnet_TCP extends online.smyhw.localnet.lib.TCP_LK
+class localnet_TCP extends online.smyhw.localnet.network.Client_sl
 {
 	public localnet_TCP(Socket s) 
 	{
-		super(s, 2);
-		this.Smsg("{type:auth,ID:"+smyhw.ID+"}");
+		super("localnetTCP",new ArrayList() {{this.add(s);this.add(2);this.add(smyhw.ID);}});
 	}	
 	public void CLmsg(String msg)
 	{
@@ -105,7 +106,7 @@ class localnet_TCP extends online.smyhw.localnet.lib.TCP_LK
 			case"st":
 			case"status":
 			{
-				this.sendto("\n["+smyhw.ID+"]服务器状态\n状态:在线");
+				this.sendMsg("\n["+smyhw.ID+"]服务器状态\n状态:在线");
 				break;
 			}
 			case"pl":
@@ -117,19 +118,19 @@ class localnet_TCP extends online.smyhw.localnet.lib.TCP_LK
 				{
 				      re=re+"\n"+p.getName();
 				}
-				this.sendto(re);
+				this.sendMsg(re);
 				break;
 			}
 			case"help":
 			{
-				this.sendto("localnet&MC 指令列表\n"
+				this.sendMsg("localnet&MC 指令列表\n"
 						+ "!!st 查看服务器状态\n"
 						+ "!!pl 查看玩家列表\n"
 						+ "!!help 查看该列表");
 			}
 			default:
 			{
-				this.sendto("未知的服务器信息指令,使用!!help列出命令列表");
+				this.sendMsg("未知的服务器信息指令,使用!!help列出命令列表");
 				break;
 			}
 			}
@@ -141,12 +142,7 @@ class localnet_TCP extends online.smyhw.localnet.lib.TCP_LK
 		}
 	}
 	
-	public void sendto(String msg)
-	{
-		msg = Json.Encoded(msg);
-		msg="{type:message,message:"+msg+"}";
-		this.Smsg(msg);
-	}
+
 	
 	public void Serr_u(TCP_LK_Exception e)
 	{
@@ -176,6 +172,6 @@ class sss extends Thread
 	}
 	public void run()
 	{
-		smyhw.ltcp.sendto(this.msg);
+		smyhw.ltcp.sendMsg(this.msg);
 	}
 }
