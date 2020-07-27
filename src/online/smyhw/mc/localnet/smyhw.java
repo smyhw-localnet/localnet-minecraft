@@ -9,6 +9,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import online.smyhw.localnet.lib.CommandFJ;
 import online.smyhw.localnet.lib.Json;
+import online.smyhw.localnet.lib.Exception.Json_Parse_Exception;
 import online.smyhw.localnet.lib.Exception.TCP_LK_Exception;
 
 import java.io.File;
@@ -92,8 +93,15 @@ class localnet_TCP extends online.smyhw.localnet.network.Client_sl
 	public void CLmsg(String msg)
 	{
 		smyhw.loger.info("接受到信息:"+msg);
-		HashMap<String,String> message  = Json.Parse(msg);
-		if(message==null) {smyhw.loger.warning("信息解码失败");return;}
+		HashMap<String, String> message;
+		try 
+		{
+			message = Json.Parse(msg);
+		}
+		catch (Json_Parse_Exception e) 
+		{
+			smyhw.loger.warning("信息解码失败");return;
+		}
 		if(message.get("type").equals("auth")) {smyhw.loger.info("连接到localnet服务器<"+message.get("ID")+">");return;}
 		if(message.get("message")==null) {smyhw.loger.info("没有找到消息节点");return;}
 		String text = message.get("message");
