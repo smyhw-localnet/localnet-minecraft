@@ -5,8 +5,11 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
+import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import online.smyhw.localnet.LN;
+import online.smyhw.localnet.data.DataPack;
 import online.smyhw.localnet.lib.CommandFJ;
 import online.smyhw.localnet.lib.Json;
 import online.smyhw.localnet.lib.Exception.Json_Parse_Exception;
@@ -17,15 +20,16 @@ import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.logging.Logger;
 import org.bukkit.*;
 
 
 public class smyhw extends JavaPlugin implements Listener 
 {
+	public static JavaPlugin smyhw_;
 	public static localnet_TCP ltcp;
-	public static Socket s;
+	public static ShowMsg SendToMcThread;
 	public static Logger loger;
 	public static FileConfiguration configer;
 	public static String ID;
@@ -34,15 +38,17 @@ public class smyhw extends JavaPlugin implements Listener
 	{
 		getLogger().info("localnet_MC开始加载");
 		getLogger().info("正在加载环境...");
+	    Bukkit.getServer().getScheduler().scheduleSyncRepeatingTask(this, new Lag(), 100L, 1L);
+	    smyhw_ = this;
 		loger=getLogger();
 		configer = getConfig();
 		if(!(new File("./plugins/localnet_MC/config.yml")).exists() && !configer.getBoolean("ForceExist")) 
 		{
 			this.saveDefaultConfig();
 			getLogger().warning("localnet_MC没有检测到配置文件，将创建默认配置文件，请修改默认配置文件后重载本插件或重启服务器....");
-			getLogger().info("localnet_MC加载完成");
 			return;
 		}
+		SendToMcThread = new ShowMsg();
 		getLogger().info("正在注册监听器...");
 		Bukkit.getPluginManager().registerEvents(this,this);
 		conn();
@@ -57,12 +63,12 @@ public class smyhw extends JavaPlugin implements Listener
     
 	public static void conn()
 	{
-		loger.info("正在读取配置文件...");
+		Socket s = new Socket();
 		String IP = configer.getString("IP");
 		int port = configer.getInt("port");
 		ID = configer.getString("ID");
-		loger.info("IP="+IP+";端口="+port+";ID="+ID);
-		loger.info("正在尝试连接到localnet...");
+		LN.ID = ID;
+		loger.info("正在尝试连接到localnet..."+"(IP="+IP+";端口="+port+";ID="+ID+"}");
 		try 
 		{
 			 s = new Socket(IP,port);
@@ -80,7 +86,7 @@ public class smyhw extends JavaPlugin implements Listener
 	@EventHandler
 	public void chat(AsyncPlayerChatEvent e)
     {
-		new sss("["+e.getPlayer().getName()+"]:"+e.getMessage());
+		new SendMsg("["+e.getPlayer().getName()+"]:"+e.getMessage());
     }
 }
 
@@ -88,24 +94,18 @@ class localnet_TCP extends online.smyhw.localnet.network.Client_sl
 {
 	public localnet_TCP(Socket s) 
 	{
-		super("localnetTCP",new ArrayList() {{this.add(s);this.add(2);this.add(smyhw.ID);}});
+		super("localnetTCP",new ArrayList() {{this.add(s);this.add(2);}});
 	}	
-	public void CLmsg(String msg)
+	public void CLmsg(DataPack re)
 	{
-		smyhw.loger.info("接受到信息:"+msg);
-		HashMap<String, String> message;
-		try 
+		smyhw.loger.info("接受到信息:"+re.getStr());
+		String message = re.getValue("message");
+		if(message==null)
 		{
-			message = Json.Parse(msg);
+			smyhw.loger.info("接收到其他消息"+re.getStr());
+			return;
 		}
-		catch (Json_Parse_Exception e) 
-		{
-			smyhw.loger.warning("信息解码失败");return;
-		}
-		if(message.get("type").equals("auth")) {smyhw.loger.info("连接到localnet服务器<"+message.get("ID")+">");return;}
-		if(message.get("message")==null) {smyhw.loger.info("没有找到消息节点");return;}
-		String text = message.get("message");
-		String[] temp = text.split(":");
+		String[] temp = message.split(":");
 		if(temp.length>=2 && temp[1].startsWith("!!"))//判断是否为指令消息
 		{
 			String temp2 = temp[1].substring(2);
@@ -114,19 +114,19 @@ class localnet_TCP extends online.smyhw.localnet.network.Client_sl
 			case"st":
 			case"status":
 			{
-				this.sendMsg("\n["+smyhw.ID+"]服务器状态\n状态:在线");
+				this.sendMsg("\n["+smyhw.ID+"]服务器状态\n状态:在线\nTPS:"+Lag.getTPS());
 				break;
 			}
 			case"pl":
 			case"PlayerList":
 			{
-				String re="\n["+smyhw.ID+"]在线列表:";
+				String reSend="\n["+smyhw.ID+"]在线列表:";
 				Collection<? extends Player> Players = Bukkit.getOnlinePlayers();
 				for(Player p :Players)
 				{
-				      re=re+"\n"+p.getName();
+					reSend=reSend+"\n"+p.getName();
 				}
-				this.sendMsg(re);
+				this.sendMsg(reSend);
 				break;
 			}
 			case"help":
@@ -145,8 +145,8 @@ class localnet_TCP extends online.smyhw.localnet.network.Client_sl
 		}
 		else
 		{
-			text="§2[§a"+message.get("From")+"§2]§r"+text;
-			Bukkit.broadcastMessage(text);
+			message="§2[§a"+re.getValue("From")+"§2]§r"+message;
+			ShowMsg.msgList.add(message);
 		}
 	}
 	
@@ -169,11 +169,11 @@ class localnet_TCP extends online.smyhw.localnet.network.Client_sl
 	
 }
 
-//委托类，负责分线程发生聊天信息
-class sss extends Thread
+//线程发送消息至localnet
+class SendMsg extends Thread
 {
 	String msg;
-	sss(String msg)
+	SendMsg(String msg)
 	{
 		this.msg=msg;
 		this.start();
@@ -181,5 +181,58 @@ class sss extends Thread
 	public void run()
 	{
 		smyhw.ltcp.sendMsg(this.msg);
+	}
+}
+
+//线程发送消息至MC
+//这是为了同步
+class ShowMsg extends BukkitRunnable
+{
+	
+	public static CopyOnWriteArrayList<String> msgList = new CopyOnWriteArrayList<String>();
+	ShowMsg()
+	{
+		this.runTaskTimer(smyhw.smyhw_, 0, 5);
+	}
+	public void run()
+	{
+		if(msgList.isEmpty()) {return;}
+		String msg = msgList.get(0);
+		msgList.remove(0);
+		Bukkit.broadcastMessage(msg);
+	}
+}
+
+class Lag implements Runnable {
+	public static int TICK_COUNT = 0;
+	public static long[] TICKS = new long[600];
+	public static long LAST_TICK = 0L;
+
+	public static double getTPS() {
+		return getTPS(100);
+	}
+
+	public static double getTPS(int ticks) {
+		if (TICK_COUNT < ticks) {
+			return 20.0D;
+		}
+		int target = (TICK_COUNT - 1 - ticks) % TICKS.length;
+		long elapsed = System.currentTimeMillis() - TICKS[target];
+
+		return ticks / (elapsed / 1000.0D);
+	}
+
+	public static long getElapsed(int tickID) {
+		if (TICK_COUNT - tickID >= TICKS.length) {
+		}
+
+		long time = TICKS[(tickID % TICKS.length)];
+		return System.currentTimeMillis() - time;
+	}
+
+	public void run() {
+		TICKS[(TICK_COUNT % TICKS.length)] = System.currentTimeMillis();
+
+		TICK_COUNT += 1;
 	}
 }
