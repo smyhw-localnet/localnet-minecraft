@@ -1,6 +1,6 @@
 ###localnet地址设置###
 IP: 127.0.0.1
-port: 2333333
+port: 1024
 
 #本服务器ID
 ID: MC_Server

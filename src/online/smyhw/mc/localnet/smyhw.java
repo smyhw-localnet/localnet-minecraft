@@ -10,10 +10,8 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import online.smyhw.localnet.LN;
 import online.smyhw.localnet.data.DataPack;
-import online.smyhw.localnet.lib.CommandFJ;
-import online.smyhw.localnet.lib.Json;
+import online.smyhw.localnet.lib.*;
 import online.smyhw.localnet.lib.Exception.Json_Parse_Exception;
-import online.smyhw.localnet.lib.Exception.TCP_LK_Exception;
 
 import java.io.File;
 import java.net.Socket;
@@ -28,7 +26,7 @@ import org.bukkit.*;
 public class smyhw extends JavaPlugin implements Listener 
 {
 	public static JavaPlugin smyhw_;
-	public static localnet_TCP ltcp;
+	public static localnetTCP2 connection;
 	public static ShowMsg SendToMcThread;
 	public static Logger loger;
 	public static FileConfiguration configer;
@@ -61,7 +59,10 @@ public class smyhw extends JavaPlugin implements Listener
 		getLogger().info("localnet_MC卸载");
     }
     
-	public static void conn()
+	/**
+	 * 连接到localnet
+	 */
+	public void conn()
 	{
 		Socket s = new Socket();
 		String IP = configer.getString("IP");
@@ -71,7 +72,11 @@ public class smyhw extends JavaPlugin implements Listener
 		loger.info("正在尝试连接到localnet..."+"(IP="+IP+";端口="+port+";ID="+ID+"}");
 		try 
 		{
+			loger.info("建立TCP...");
 			 s = new Socket(IP,port);
+			loger.info("初始化协议...");
+			connection = new online.smyhw.localnet.lib.localnetTCP2(s,this,this.getClass().getMethod("on_recv", String.class),this,this.getClass().getMethod("on_error",  String.class,Exception.class));
+			connection.send_msg("{\"ID\":\""+ID+"\",\"type\":\"auth\"}");
 		} 
 		catch (Exception e) 
 		{
@@ -79,8 +84,6 @@ public class smyhw extends JavaPlugin implements Listener
 			e.printStackTrace();
 			loger.warning("稍后将再次尝试连接!");
 		}
-		loger.warning("正在创建连接实例...");
-		ltcp = new localnet_TCP(s);
 	}
 	
 	@EventHandler
@@ -88,33 +91,43 @@ public class smyhw extends JavaPlugin implements Listener
     {
 		new SendMsg("["+e.getPlayer().getName()+"]:"+e.getMessage());
     }
-}
+	
+	
+	
+	//localnet相关
 
-class localnet_TCP extends online.smyhw.localnet.network.Client_sl
-{
-	public localnet_TCP(Socket s) 
+	/**
+	 * 从localnet接收到消息时
+	 * 注册到localnetTCP2
+	 * @param re
+	 */
+	public void on_recv(String re)
 	{
-		super("localnetTCP",new ArrayList() {{this.add(s);this.add(2);}});
-	}	
-	public void CLmsg(DataPack re)
-	{
-		smyhw.loger.info("接受到信息:"+re.getStr());
-		String message = re.getValue("message");
+		smyhw.loger.info("接收到信息:"+re);
+		HashMap<String, String> tmp1;
+		try {
+			tmp1 = Json.Parse(re);
+		} catch (Json_Parse_Exception e) {
+			smyhw.loger.warning("消息解码失败<"+re+">");
+			e.printStackTrace();
+			return;
+		}
+		String message = tmp1.get("message");
 		if(message==null)
 		{
-			smyhw.loger.info("接收到其他消息"+re.getStr());
+			smyhw.loger.info("接收到其他消息"+re);
 			return;
 		}
 		String[] temp = message.split(":");
-		if(temp.length>=2 && temp[1].startsWith("!!"))//判断是否为指令消息
+		if(temp.length>=3 && temp[2].startsWith("!!"))//判断是否为指令消息
 		{
-			String temp2 = temp[1].substring(2);
+			String temp2 = temp[2].substring(2);
 			switch(CommandFJ.fj(temp2, 0))
 			{
 			case"st":
 			case"status":
 			{
-				this.sendMsg("\n["+smyhw.ID+"]服务器状态\n状态:在线\nTPS:"+Lag.getTPS());
+				new SendMsg("\n["+smyhw.ID+"]服务器状态\n状态:在线\nTPS:"+Lag.getTPS());
 				break;
 			}
 			case"pl":
@@ -126,33 +139,38 @@ class localnet_TCP extends online.smyhw.localnet.network.Client_sl
 				{
 					reSend=reSend+"\n"+p.getName();
 				}
-				this.sendMsg(reSend);
+				new SendMsg(reSend);
 				break;
 			}
 			case"help":
 			{
-				this.sendMsg("localnet&MC 指令列表\n"
+				new SendMsg("\n["+smyhw.ID+"]localnet&MC 指令列表\n"
 						+ "!!st 查看服务器状态\n"
 						+ "!!pl 查看玩家列表\n"
 						+ "!!help 查看该列表");
 			}
 			default:
 			{
-				this.sendMsg("未知的服务器信息指令,使用!!help列出命令列表");
+				new SendMsg("\n["+smyhw.ID+"]未知的服务器信息指令,使用!!help列出命令列表");
 				break;
 			}
 			}
 		}
 		else
 		{
-			message="§2[§a"+re.getValue("From")+"§2]§r"+message;
+			//TODO 染色
+//			message="§2[§a"+re.getValue("From")+"§2]§r"+message;
 			ShowMsg.msgList.add(message);
 		}
 	}
 	
-
-	
-	public void Serr_u(TCP_LK_Exception e)
+	/**
+	 * 当连接错误时...
+	 * 注册到localnetTCP2
+	 * @param msg
+	 * @param e
+	 */
+	public void on_error(String msg,Exception e)
 	{
 		smyhw.loger.warning("与localnet的连接出错,5s后重试!{"+e.getMessage()+"}");
 		try 
@@ -164,9 +182,9 @@ class localnet_TCP extends online.smyhw.localnet.network.Client_sl
 			smyhw.loger.warning("延迟出错!");
 			e.printStackTrace();
 		}
-		smyhw.conn();
+		this.conn();
 	}
-	
+	//=============
 }
 
 //线程发送消息至localnet
@@ -180,7 +198,10 @@ class SendMsg extends Thread
 	}
 	public void run()
 	{
-		smyhw.ltcp.sendMsg(this.msg);
+		smyhw.connection.send_msg("{"
+				+ "\"type\":\"message\","
+				+ "\"message\":\""+Json.Encoded( this.msg)+"\""
+				+ "}");
 	}
 }
 
