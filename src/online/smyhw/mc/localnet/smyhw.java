@@ -89,7 +89,7 @@ public class smyhw extends JavaPlugin implements Listener
 	@EventHandler
 	public void chat(AsyncPlayerChatEvent e)
     {
-		new SendMsg("["+e.getPlayer().getName()+"]:"+e.getMessage());
+		new SendMsg("<"+e.getPlayer().getName()+"> "+e.getMessage());
     }
 	
 	
@@ -103,65 +103,49 @@ public class smyhw extends JavaPlugin implements Listener
 	 */
 	public void on_recv(String re)
 	{
-		smyhw.loger.info("接收到信息:"+re);
+		smyhw.loger.info("接收到信息 -> "+re);
 		HashMap<String, String> tmp1;
 		try {
 			tmp1 = Json.Parse(re);
 		} catch (Json_Parse_Exception e) {
-			smyhw.loger.warning("消息解码失败<"+re+">");
+			smyhw.loger.warning("消息解码失败 -> "+re);
 			e.printStackTrace();
 			return;
 		}
 		String message = tmp1.get("message");
 		if(message==null)
 		{
-			smyhw.loger.info("接收到其他消息"+re);
+			smyhw.loger.info("接收到不支持消息 -> "+re);
 			return;
 		}
-		String[] temp = message.split(":");
-		if(temp.length>=3 && temp[2].startsWith("!!"))//判断是否为指令消息
+		//指令
+		if(message.endsWith("!!st") || message.endsWith("!!status"))
 		{
-			String temp2 = temp[2].substring(2);
-			switch(CommandFJ.fj(temp2, 0))
-			{
-			case"st":
-			case"status":
-			{
-				new SendMsg("\n["+smyhw.ID+"]服务器状态\n状态:在线\nTPS:"+Lag.getTPS());
-				break;
-			}
-			case"pl":
-			case"PlayerList":
-			{
-				String reSend="\n["+smyhw.ID+"]在线列表:";
-				Collection<? extends Player> Players = Bukkit.getOnlinePlayers();
-				for(Player p :Players)
-				{
-					reSend=reSend+"\n"+p.getName();
-				}
-				new SendMsg(reSend);
-				break;
-			}
-			case"help":
-			{
-				new SendMsg("\n["+smyhw.ID+"]localnet&MC 指令列表\n"
-						+ "!!st 查看服务器状态\n"
-						+ "!!pl 查看玩家列表\n"
-						+ "!!help 查看该列表");
-			}
-			default:
-			{
-				new SendMsg("\n["+smyhw.ID+"]未知的服务器信息指令,使用!!help列出命令列表");
-				break;
-			}
-			}
+			new SendMsg("\n节点ID: "+smyhw.ID+"\n状态: 在线\nTPS: "+Lag.getTPS());
 		}
-		else
-		{
-			//TODO 染色
-//			message="§2[§a"+re.getValue("From")+"§2]§r"+message;
+		if(message.endsWith("!!pl") || message.endsWith("!!player_list"))
+		{				
+			String reSend="["+smyhw.ID+"]\n=在线客户端=\n";
+			Collection<? extends Player> Players = Bukkit.getOnlinePlayers();
+			for(Player p :Players)
+			{
+				reSend=reSend+p.getName()+"\n";
+			}
+			reSend = reSend.substring(0, reSend.length()-1);
+			new SendMsg(reSend);
+		}
+		//染色
+		String[] tmp2 = message.split(" ");
+		if(tmp2.length<3) {
+			smyhw.loger.warning("染色处理失败 -> "+message);
 			ShowMsg.msgList.add(message);
+			return;
 		}
+		String tmp3=message.substring(tmp2[0].length()+tmp2[1].length()+2);
+		tmp2[0] = tmp2[0].replaceAll("<", "§o§7<§6");
+		tmp2[0] = tmp2[0].replaceAll(">", "§7>§r");
+		tmp3 = tmp2[0]+tmp2[1]+" §o"+tmp3;
+		ShowMsg.msgList.add(tmp3);
 	}
 	
 	/**
